@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import h5py
 from mpl_toolkits.mplot3d import Axes3D
-
-# 该代码用于生成石墨的晶体结构，并计算原子间的相互作用力
+from tqdm import tqdm
+# 石墨晶格基矢
 a1 = np.array([2.456, 0.0, 0.0])
 a2 = np.array([-1.228, 2.126958, 0.0])
 a3 = np.array([0.0, 0.0, 7.0])
@@ -15,78 +16,114 @@ basis_frac = np.array([
     [2/3, 1/3, 0.75]
 ])
 
-# 构建晶胞
 def generate_graphite(nx, ny, nz):
-    """
-    生成石墨晶体结构的原子位置。
-    nx, ny, nz: 晶胞在x, y, z方向上的重复次数
-    返回值是晶格的初始位置以及初始时间
-    """
     positions = []
     for i in range(nx):
         for j in range(ny):
             for k in range(nz):
                 shift = i*a1 + j*a2 + k*a3
                 for frac in basis_frac:
+                    pos = frac[0] * a1 + frac[1] * a2 + frac[2] * a3
                     xyz = pos + shift
-                    positions.append(np.append(xyz, 0.0))  
+                    positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间（可扩展）
     return np.array(positions)
-def compute_accelerations(positions, epsilon=0.01, sigma=3.4, mass=12.0, cutoff=8.5):
-    """
-    给定所有原子的位置，返回对应加速度数组。
-    这里使用的是Lennard-Jones势能函数来计算原子间的相互作用力。
-    该函数计算每对原子之间的相互作用力，并返回加速度。
-    """
-    N = len(positions)
-    accelerations = np.zeros((N, 3))  # 只计算 xyz 三维加速度
 
-    # 提取位置部分（忽略时间维）
+def compute_accelerations(positions, epsilon=0.01, sigma=3.4, mass=12.0, cutoff=8.5):
+    N = len(positions)
+    accelerations = np.zeros((N, 3))
     pos = positions[:, :3]
 
     for i in range(N):
         for j in range(i + 1, N):
             rij = pos[i] - pos[j]
             r = np.linalg.norm(rij)
-
             if r < cutoff:
                 r6 = (sigma / r) ** 6
                 r12 = r6 ** 2
                 force_scalar = 24 * epsilon * (2 * r12 - r6) / r**2
                 force_vector = force_scalar * rij
                 accelerations[i] += force_vector / mass
-                accelerations[j] -= force_vector / mass  # Newton's Third Law
-
+                accelerations[j] -= force_vector / mass
     return accelerations
-def compute_new_positions(positions, accelerations, dt=0.01):
-    """
-    更新原子位置，目前打算使用verlrt方法
-    """
-    return new_positions
-def boundary_conditions(positions, box_size):
-    """
-    处理周期性边界条件
-    """
-    return positions
-#构建 3x3x2 石墨结构
-#这里主要是为了方便可视化，nx, ny, nz的值可以根据需要进行调整
-#检验函数generate_graphite有没有正确生成
-#我们最终是要做一个连续播放的动画
-#并且要模拟更多的原子
-nx, ny, nz = 9, 9, 6
-positions = generate_graphite(nx, ny, nz)
 
+def compute_new_positions(positions, accelerations, prev_positions=None, dt=0.01):
+    N = len(positions)
+    new_positions = np.copy(positions)
+    if prev_positions is None:
+        new_positions[:, :3] = positions[:, :3] + 0.5 * accelerations * dt**2
+    else:
+        new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * dt**2
+    return new_positions
+
+def boundary_conditions(positions, box_size):
+    wrapped_positions = np.copy(positions)
+    for i in range(3):
+        wrapped_positions[:, i] = np.mod(wrapped_positions[:, i], box_size[i])
+    return wrapped_positions
+
+# 初始化结构
+nx, ny, nz = 3, 6, 4
+positions = generate_graphite(nx, ny, nz)
+N_particles = len(positions)
+particle_ids = np.arange(N_particles)  # 粒子编号
+box_size = np.array([
+    nx * np.linalg.norm(a1),
+    ny * np.linalg.norm(a2),
+    nz * np.linalg.norm(a3)
+])
+
+# 可视化初始结构
 
 fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection='3d')
-
-
 ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c='black', s=40)
 
+bond_threshold = 1.7
+N = len(positions)
+for i in range(N):
+    for j in range(i + 1, N):
+        dist = np.linalg.norm(positions[i, :3] - positions[j, :3])
+        if dist < bond_threshold:
+            xs = [positions[i, 0], positions[j, 0]]
+            ys = [positions[i, 1], positions[j, 1]]
+            zs = [positions[i, 2], positions[j, 2]]
+            ax.plot(xs, ys, zs, color='gray', linewidth=1)
 
 ax.set_title("Initial Graphite Structure", fontsize=14)
 ax.set_xlabel("X (Å)")
 ax.set_ylabel("Y (Å)")
 ax.set_zlabel("Z (Å)")
-
 plt.tight_layout()
 plt.show()
+
+# 模拟参数
+dt = 0.01
+steps = 100
+prev_positions = None
+current_positions = positions.copy()
+
+# 模拟主循环
+trajectory = []
+
+with h5py.File("graphite_simulation.h5", "w") as h5file:
+    flat_data = h5file.create_dataset("trajetory", (steps*N_particles, 5), dtype='f8')
+    
+
+    # 模拟主循环
+    for step in tqdm(range(steps)):
+        acc = compute_accelerations(current_positions)
+        new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
+        new_positions = boundary_conditions(new_positions, box_size)
+        time_value = step * dt
+        # 写入数据：仅 xyz 坐标
+        step_data = np.hstack([
+            particle_ids.reshape(-1, 1),
+            new_positions[:, :3],
+            np.full((N_particles, 1), time_value)
+        ])
+
+        # 写入平铺数据
+        flat_data[step * N_particles : (step + 1) * N_particles] = step_data
+
+        prev_positions = current_positions.copy()
+        current_positions = new_positions.copy()
