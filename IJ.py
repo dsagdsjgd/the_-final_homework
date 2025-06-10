@@ -28,14 +28,34 @@ def generate_graphite(nx, ny, nz):
                     positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间（可扩展）
     return np.array(positions)
 
-def compute_accelerations(positions, epsilon=0.01, sigma=3.4, mass=12.0, cutoff=8.5):
+def compute_accelerations(positions, nx, ny, nz, epsilon=0.01, sigma=3.4, mass=12.0, cutoff=8.5):
     N = len(positions)
     accelerations = np.zeros((N, 3))
     pos = positions[:, :3]
 
     for i in range(N):
         for j in range(i + 1, N):
-            rij = pos[i] - pos[j]
+            # # 下面的解法一导致扩散
+            # 用(i,j,k)表示原子坐标。按序存储，index=i*(ny*nz)+j*(nz)+k。下面表示两个在周期性边界条件下z/y/x方向上相邻的原子
+            if (i%nz == 0 and j%nz == nz-1): # z方向上都在边界上
+                rij = pos[i] - pos[j] + nz*a3
+            elif (i%(ny*nz)//nz == 0 and j%(ny*nz)//nz == ny-1): # y方向上
+                rij = pos[i] - pos[j] + ny*a2
+            elif (i//(ny*nz) == 0 and j//(ny*nz) == nx-1): # x方向上
+                rij = pos[i] - pos[j] + nx*a1
+            else:
+                rij = pos[i] - pos[j]
+            
+            # # 解法二慢一些
+            # rij = min(
+            #     [
+            #         pos[i] - pos[j],
+            #         pos[i] - pos[j] + nx * a1,
+            #         pos[i] - pos[j] + ny * a2,
+            #         pos[i] - pos[j] + nz * a3,
+            #     ],
+            #     key=np.linalg.norm
+            # )
             r = np.linalg.norm(rij)
             if r < cutoff:
                 r6 = (sigma / r) ** 6
@@ -68,7 +88,7 @@ N_particles = len(positions)
 particle_ids = np.arange(N_particles)  # 粒子编号
 box_size = np.array([
     nx * np.linalg.norm(a1),
-    ny * np.linalg.norm(a2),
+    ny * np.linalg.norm(a2)* np.cos(np.pi/6),
     nz * np.linalg.norm(a3)
 ])
 
@@ -111,7 +131,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
 
     # 模拟主循环
     for step in tqdm(range(steps)):
-        acc = compute_accelerations(current_positions)
+        acc = compute_accelerations(current_positions, nx, ny, nz)
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = step * dt
