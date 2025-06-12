@@ -84,7 +84,7 @@ def generate_graphite(nx, ny, nz):
     return np.array(positions), boundary
 
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 1):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 2):
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
     if boundarycondition == 0 : # 无边界
         N = len(positions)
@@ -136,7 +136,7 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                         accelerations[i] += force_vector / mass
                         accelerations[j] -= force_vector / mass
 
-            return accelerations, forces
+        return accelerations, forces
     if boundarycondition == 2: # 固定边界
         N = len(positions)
         accelerations = np.zeros((N, 3))
@@ -207,7 +207,7 @@ def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.
     eV = 1.602176634e-19  # J/eV
     amu = 1.66053906660e-27  # kg
     angstrom = 1e-10  # Å to m
-    a_unit = eV / amu / angstrom**2  # Å/s²
+    a_unit = eV / amu / angstrom  # Å/s²
     if prev_positions is None:
         # Initialize velocities using Maxwell-Boltzmann distribution
         temperature = 0  # Kelvin
@@ -334,11 +334,12 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
             if step % 50 == 0 :
                 for i in range(N_particles):
                     for j in range(i+1, N_particles):
-                        output_file.write(
-                            f"# Force {i}-{j}: "
-                            f"{forces[i,j,0]:12.8f} {forces[i,j,1]:12.8f} {forces[i,j,2]:12.8f} "
-                            f"|r|={np.linalg.norm(new_positions[i,:3]-new_positions[j,:3]):6.3f} \n"
-                        )
+                        if np.any(forces[i][j])!=0:
+                            output_file.write(
+                                f"# Force {i}-{j}: "
+                                f"{forces[i,j,0]:12.8f} {forces[i,j,1]:12.8f} {forces[i,j,2]:12.8f} "
+                                f"|r|={np.linalg.norm(new_positions[i,:3]-new_positions[j,:3]):6.3f} \n"
+                            )
             output_file.write("# -------------------------------------------------\n")
         
         prev_positions = current_positions.copy()
