@@ -28,7 +28,7 @@ def generate_graphite(nx, ny, nz):
                     positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间（可扩展）
     return np.array(positions)
 
-def compute_accelerations(positions, nx, ny, nz, epsilon=0.0067, sigma=3.4, mass=12.0, cutoff=8.5):
+def compute_accelerations(positions, nx, ny, nz, epsilon=0.0067, sigma=1.418, mass=12.0, cutoff=8.5):
     N = len(positions)
     accelerations = np.zeros((N, 3))
     pos = positions[:, :3]
@@ -70,7 +70,7 @@ def boundary_conditions(positions, box_size):
     return wrapped_positions
 
 # 初始化结构
-nx, ny, nz = 3, 6, 4
+nx, ny, nz = 6, 6, 4
 positions = generate_graphite(nx, ny, nz)
 N_particles = len(positions)
 particle_ids = np.arange(N_particles)  # 粒子编号

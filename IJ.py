@@ -4,9 +4,18 @@ import h5py
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
 # 石墨晶格基矢
+nx, ny, nz = 4, 6, 4  # 超胞尺寸
 a1 = np.array([2.456, 0.0, 0.0])
 a2 = np.array([-1.228, 2.126958, 0.0])
 a3 = np.array([0.0, 0.0, 7.0])
+lattice_vectors = np.array([a1, a2, a3])
+inv_lattice_vectors = np.linalg.inv(lattice_vectors.T)
+supercell_vectors = np.array([
+    nx * a1,
+    ny * a2,
+    nz * a3
+])
+inv_supercell = np.linalg.inv(supercell_vectors.T)
 
 # 基元原子（分数坐标）
 basis_frac = np.array([
@@ -28,44 +37,39 @@ def generate_graphite(nx, ny, nz):
                     positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间（可扩展）
     return np.array(positions)
 
-def compute_accelerations(positions, nx, ny, nz, epsilon=0.01, sigma=3.4, mass=12.0, cutoff=8.5):
+def compute_accelerations(positions, epsilon=0.0029, sigma=1.42, mass=12.0, cutoff=8.5):
     N = len(positions)
     accelerations = np.zeros((N, 3))
     pos = positions[:, :3]
-
+    
+    
     for i in range(N):
         for j in range(i + 1, N):
-            # # 下面的解法一导致扩散
-            # 用(i,j,k)表示原子坐标。按序存储，index=i*(ny*nz)+j*(nz)+k。下面表示两个在周期性边界条件下z/y/x方向上相邻的原子
-            if (i%nz == 0 and j%nz == nz-1): # z方向上都在边界上
-                rij = pos[i] - pos[j] + nz*a3
-            elif (i%(ny*nz)//nz == 0 and j%(ny*nz)//nz == ny-1): # y方向上
-                rij = pos[i] - pos[j] + ny*a2
-            elif (i//(ny*nz) == 0 and j//(ny*nz) == nx-1): # x方向上
-                rij = pos[i] - pos[j] + nx*a1
-            else:
-                rij = pos[i] - pos[j]
+      
+            lattice_coords_i = np.dot(pos[i], inv_supercell)
+            lattice_coords_j = np.dot(pos[j], inv_supercell)
+
+          
+            lattice_rij = lattice_coords_i - lattice_coords_j
+
+          
+            llattice_rij = lattice_rij - np.round(lattice_rij)
+            # 将晶格坐标差转换回笛卡尔坐标
+            rij = np.dot(lattice_rij, supercell_vectors.T)
             
-            # # 解法二慢一些
-            # rij = min(
-            #     [
-            #         pos[i] - pos[j],
-            #         pos[i] - pos[j] + nx * a1,
-            #         pos[i] - pos[j] + ny * a2,
-            #         pos[i] - pos[j] + nz * a3,
-            #     ],
-            #     key=np.linalg.norm
-            # )
+            # 计算距离
             r = np.linalg.norm(rij)
-            if r < cutoff:
+        
+            if 0.1 < r < cutoff:
                 r6 = (sigma / r) ** 6
                 r12 = r6 ** 2
                 force_scalar = 24 * epsilon * (2 * r12 - r6) / r**2
                 force_vector = force_scalar * rij
+
                 accelerations[i] += force_vector / mass
                 accelerations[j] -= force_vector / mass
-    return accelerations
 
+    return accelerations
 def compute_new_positions(positions, accelerations, prev_positions=None, dt=0.01):
     N = len(positions)
     new_positions = np.copy(positions)
@@ -76,19 +80,31 @@ def compute_new_positions(positions, accelerations, prev_positions=None, dt=0.01
     return new_positions
 
 def boundary_conditions(positions, box_size):
+    # 先转换为晶格坐标
+    frac_coords = np.dot(positions[:, :3], inv_supercell)
+    
+    # 对每一维做模运算，实现周期性边界
+    frac_coords = frac_coords % 1.0  # 自动限制在 [0, 1)
+    
+    # 转换回笛卡尔坐标
+    wrapped_cartesian = np.dot(frac_coords, supercell_vectors.T)
+    
+    # 保留原来的时间维度（或其他额外列）
     wrapped_positions = np.copy(positions)
-    for i in range(3):
-        wrapped_positions[:, i] = np.mod(wrapped_positions[:, i], box_size[i])
+    wrapped_positions[:, :3] = wrapped_cartesian
+    
     return wrapped_positions
 
+
+
 # 初始化结构
-nx, ny, nz = 3, 6, 4
+
 positions = generate_graphite(nx, ny, nz)
 N_particles = len(positions)
 particle_ids = np.arange(N_particles)  # 粒子编号
 box_size = np.array([
     nx * np.linalg.norm(a1),
-    ny * np.linalg.norm(a2)* np.cos(np.pi/6),
+    ny * np.linalg.norm(a2),
     nz * np.linalg.norm(a3)
 ])
 
@@ -117,8 +133,8 @@ plt.tight_layout()
 plt.show()
 
 # 模拟参数
-dt = 0.01
-steps = 100
+dt = 0.001
+steps = 30
 prev_positions = None
 current_positions = positions.copy()
 
@@ -131,7 +147,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
 
     # 模拟主循环
     for step in tqdm(range(steps)):
-        acc = compute_accelerations(current_positions, nx, ny, nz)
+        acc = compute_accelerations(current_positions)
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = step * dt

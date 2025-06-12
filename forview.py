@@ -27,7 +27,7 @@ def select_in_boundary():
     particle_ids = particle_ids[in_boundary]
     positions = positions[in_boundary]
     times = times[in_boundary]
-select_in_boundary()
+#select_in_boundary()
 
 unique_times = np.unique(times)
 unique_ids = np.unique(particle_ids)
