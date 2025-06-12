@@ -129,7 +129,7 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                     if r < cutoff:
                         r6 = (sigma / r) ** 6
                         r12 = r6 ** 2
-                        force_scalar = 4 * epsilon * (12 * r12 - 6 * r6) / r**2
+                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2
                         force_vector = force_scalar * rij
                         forces[i, j] = force_vector
                         forces[j, i] = -force_vector
@@ -210,7 +210,7 @@ def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.
     a_unit = eV / amu / angstrom  # Å/s²
     if prev_positions is None:
         # Initialize velocities using Maxwell-Boltzmann distribution
-        temperature = 0  # Kelvin
+        temperature = 20  # Kelvin
         k_B = 1.380649e-23  # J/K
         mass_kg = mass * amu  # Convert atomic mass to kg
         std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
