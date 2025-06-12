@@ -15,7 +15,7 @@ times = data[:, 4]
 
 def func(i, j, k):
     return i * (ny * nz) + j * (nz) + k
-nx, ny, nz = 3, 6, 4
+nx, ny, nz = 6, 6, 4
 
 # 只选择边界内的原子，否则边界处横跳干扰视线
 def select_in_boundary():
@@ -63,7 +63,7 @@ ax.set_title('Graphite Simulation')
 def update(frame):
     pos = positions_reshaped[frame]
     scat._offsets3d = (pos[:,0], pos[:,1], pos[:,2])
-    ax.set_title(f"Time = {unique_times[frame]:.3f} ps")
+    ax.set_title(f"Time = {(unique_times[frame]*1e12):.3f} ps")
     return scat,
 
 ani = FuncAnimation(fig, update, frames=N_steps, interval=100, blit=False)

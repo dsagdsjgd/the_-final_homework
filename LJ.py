@@ -10,7 +10,7 @@ a3 = np.array([0.0, 0.0, 7.0])
 # 初始条件
 nx, ny, nz = 6, 6, 4
 # 模拟参数
-dt = 0.01
+dt = 1e-13 # 0.1 ps
 steps = 30
 # 是否写入文件
 writetext = True
@@ -74,7 +74,8 @@ def generate_graphite(nx, ny, nz):
     return np.array(positions), boundary
 
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 1):
+# def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
     if boundarycondition == 0 : # 无边界
         N = len(positions)
         accelerations = np.zeros((N, 3))
@@ -150,23 +151,23 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
         return accelerations , forces
 
 # 使用verlet算法计算新位置
-def compute_new_positions(positions, accelerations, prev_positions, dt=0.01, mass=12.0):
+def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.0):
     N = len(positions)
     new_positions = np.copy(positions)
     # Convert accelerations to appropriate units (eV/Å(amu) to Å/s²)
     eV = 1.602176634e-19  # J/eV
     amu = 1.66053906660e-27  # kg
-    angstrom_to_meter = 1e-10  # Å to m
-    a_unit = eV / amu / angstrom_to_meter**2  # Å/s²
+    angstrom = 1e-10  # Å to m
+    a_unit = eV / amu / angstrom**2  # Å/s²
     if prev_positions is None:
         # Initialize velocities using Maxwell-Boltzmann distribution
-        temperature = 30  # Kelvin
+        temperature = 10  # Kelvin
         k_B = 1.380649e-23  # J/K
         mass_kg = mass * amu  # Convert atomic mass to kg
         std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
         velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
         # velocity = np.zeros((N, 3))
-        new_positions[:, :3] = positions[:, :3] + velocity / amu * dt + 0.5 * accelerations * a_unit * dt**2
+        new_positions[:, :3] = positions[:, :3] + velocity / angstrom * dt + 0.5 * accelerations * a_unit * dt**2
     else:
         new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * a_unit * dt**2
     return new_positions
