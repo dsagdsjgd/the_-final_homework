@@ -28,7 +28,12 @@ def generate_graphite(nx, ny, nz):
                     positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间（可扩展）
     return np.array(positions)
 
-def compute_accelerations(positions, nx, ny, nz, epsilon=0.0067, sigma=1.418, mass=12.0, cutoff=8.5):
+a = 2.456
+c = 7.0
+sigma_between_layer = np.sqrt((a**2)/3 + (c/2)**2)
+
+def compute_accelerations(positions, nx, ny, nz, epsilon=0.0067, sigma=sigma_between_layer, mass=12.0, cutoff=8.5):
+# def compute_accelerations(positions, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=8.5):
     N = len(positions)
     accelerations = np.zeros((N, 3))
     pos = positions[:, :3]
@@ -48,19 +53,31 @@ def compute_accelerations(positions, nx, ny, nz, epsilon=0.0067, sigma=1.418, ma
             if r < cutoff:
                 r6 = (sigma / r) ** 6
                 r12 = r6 ** 2
-                force_scalar = 4 * epsilon * (r12 - r6) / r**2
+                force_scalar = 24 * epsilon * (2*r12 - r6) / r**2
                 force_vector = force_scalar * rij
                 accelerations[i] += force_vector / mass
                 accelerations[j] -= force_vector / mass
-    return accelerations
+    return accelerations # eV/Å(amu)
 
-def compute_new_positions(positions, accelerations, prev_positions, dt=0.01):
+def compute_new_positions(positions, accelerations, prev_positions, dt=0.01, mass=12.0):
     N = len(positions)
     new_positions = np.copy(positions)
+    # Convert accelerations to appropriate units (eV/Å(amu) to Å/s²)
+    eV = 1.602176634e-19  # J/eV
+    amu = 1.66053906660e-27  # kg
+    angstrom_to_meter = 1e-10  # Å to m
+    a_unit = eV / amu / angstrom_to_meter**2  # Å/s²
     if prev_positions is None:
-        new_positions[:, :3] = positions[:, :3] + 0.5 * accelerations * dt**2
+        # Initialize velocities using Maxwell-Boltzmann distribution
+        temperature = 30  # Kelvin
+        k_B = 1.380649e-23  # J/K
+        mass_kg = mass * amu  # Convert atomic mass to kg
+        std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
+        velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
+        # velocity = np.zeros((N, 3))
+        new_positions[:, :3] = positions[:, :3] + velocity / amu * dt + 0.5 * accelerations * a_unit * dt**2
     else:
-        new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * dt**2
+        new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * a_unit * dt**2
     return new_positions
 
 def boundary_conditions(positions, box_size):
