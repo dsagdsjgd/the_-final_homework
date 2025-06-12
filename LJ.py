@@ -7,6 +7,13 @@ from tqdm import tqdm
 a1 = np.array([2.456, 0.0, 0.0])
 a2 = np.array([-1.228, 2.126958, 0.0])
 a3 = np.array([0.0, 0.0, 7.0])
+# 初始条件
+nx, ny, nz = 6, 6, 4
+# 模拟参数
+dt = 0.01
+steps = 30
+# 是否写入文件
+writetext = True
 
 # 基元原子（分数坐标）
 basis_frac = np.array([
@@ -15,6 +22,11 @@ basis_frac = np.array([
     [1/3, 2/3, 0.25],
     [2/3, 1/3, 0.75]
 ])
+
+# 一些参数
+a = 2.456
+c = 7.0
+sigma_between_layer = np.sqrt((a**2)/3 + (c/2)**2)
 
 #返回的boundary是N*5列表，除了原子序号还包含了原子是在哪个边界的信息
 def generate_graphite(nx, ny, nz):
@@ -61,15 +73,12 @@ def generate_graphite(nx, ny, nz):
     
     return np.array(positions), boundary
 
-a = 2.456
-c = 7.0
-sigma_between_layer = np.sqrt((a**2)/3 + (c/2)**2)
-
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 0):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
     if boundarycondition == 0 : # 无边界
         N = len(positions)
         accelerations = np.zeros((N, 3))
+        forces = np.zeros((N, N, 3))  # 存储两两之间的力
         pos = positions[:, :3]
 
         for i in range(N):
@@ -81,9 +90,11 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                     r12 = r6 ** 2
                     force_scalar = 24 * epsilon * (2*r12 - r6) / r**2
                     force_vector = force_scalar * rij
+                    forces[i, j] = force_vector
+                    forces[j, i] = -force_vector
                     accelerations[i] += force_vector / mass
                     accelerations[j] -= force_vector / mass
-        return accelerations # eV/Å(amu)
+        return accelerations , forces # eV/Å(amu)
     if boundarycondition == 1 : # 周期性边界
         N = len(positions)
         accelerations = np.zeros((N, 3))
@@ -113,7 +124,8 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                         forces[j, i] = -force_vector
                         accelerations[i] += force_vector / mass
                         accelerations[j] -= force_vector / mass
-        return accelerations
+
+            return accelerations, forces
     if boundarycondition == 2: # 固定边界
         N = len(positions)
         accelerations = np.zeros((N, 3))
@@ -135,9 +147,9 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                         accelerations[i] += force_vector / mass
                     if j not in boundary:
                         accelerations[j] -= force_vector / mass
-        return accelerations
+        return accelerations , forces
 
-
+# 使用verlet算法计算新位置
 def compute_new_positions(positions, accelerations, prev_positions, dt=0.01, mass=12.0):
     N = len(positions)
     new_positions = np.copy(positions)
@@ -159,6 +171,13 @@ def compute_new_positions(positions, accelerations, prev_positions, dt=0.01, mas
         new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * a_unit * dt**2
     return new_positions
 
+# 计算速度
+def compute_velocity(current_positions, prev_positions, dt):
+    if prev_positions is None:
+        return np.zeros_like(current_positions[:, :3])
+    return (current_positions[:, :3] - prev_positions[:, :3]) / dt
+
+#边界条件处理出界原子
 def boundary_conditions(positions, box_size):
     wrapped_positions = np.copy(positions)
     for i in range(3):
@@ -166,7 +185,7 @@ def boundary_conditions(positions, box_size):
     return wrapped_positions
 
 # 初始化结构
-nx, ny, nz = 6, 6, 4
+
 positions,boundary = generate_graphite(nx, ny, nz)
 boundary_atom_indices = np.array([item[0] for item in boundary])
 N_particles = len(positions)
@@ -203,24 +222,30 @@ plt.tight_layout()
 plt.show()
 
 # 模拟参数
-dt = 0.01
-steps = 30
 prev_positions = None
 current_positions = positions.copy()
 
 # 模拟主循环
 trajectory = []
 
+# 在模拟主循环之前添加文件打开操作 ， 打开可视化数据文件和txt数据文件
+if writetext:
+    output_file = open("dynamics_output.txt", "w")
+    # 写入文件头
+    output_file.write("# Step Time ParticleID X Y Z Vx Vy Vz Ax Ay Az\n")
+    output_file.write("# -----------------------------------------------------------------\n")
+
 with h5py.File("graphite_simulation.h5", "w") as h5file:
     flat_data = h5file.create_dataset("trajetory", (steps*N_particles, 5), dtype='f8')
-    
 
     # 模拟主循环
     for step in tqdm(range(steps)):
-        acc = compute_accelerations(current_positions,boundary_atom_indices, nx, ny, nz)
+        acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
+        velocity = compute_velocity(current_positions, prev_positions, dt)
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = step * dt
+        
         # 写入数据：仅 xyz 坐标
         step_data = np.hstack([
             particle_ids.reshape(-1, 1),
@@ -230,6 +255,30 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
 
         # 写入平铺数据
         flat_data[step * N_particles : (step + 1) * N_particles] = step_data
+        if writetext:
+            # 写入每个粒子的信息
+            for i in range(N_particles):
+                # 格式: 步数 时间 粒子ID x y z vx vy vz ax ay az
+                output_file.write(
+                    f"{step:5d} {time_value:8.4f} {i:5d} "
+                    f"{new_positions[i,0]:10.5f} {new_positions[i,1]:10.5f} {new_positions[i,2]:10.5f} "
+                    f"{velocity[i,0]:10.5f} {velocity[i,1]:10.5f} {velocity[i,2]:10.5f} "
+                    f"{acc[i,0]:10.5f} {acc[i,1]:10.5f} {acc[i,2]:10.5f}\n"
+                )
 
+            output_file.write("# Forces (selected pairs) at step {}\n".format(step))
+            if step % 50 == 0 :
+                for i in range(N_particles):
+                    for j in range(i+1, N_particles):
+                        output_file.write(
+                            f"# Force {i}-{j}: "
+                            f"{forces[i,j,0]:12.8f} {forces[i,j,1]:12.8f} {forces[i,j,2]:12.8f} "
+                            f"|r|={np.linalg.norm(new_positions[i,:3]-new_positions[j,:3]):6.3f} \n"
+                        )
+            output_file.write("# -------------------------------------------------\n")
+        
         prev_positions = current_positions.copy()
         current_positions = new_positions.copy()
+
+    if writetext:
+        output_file.close()
