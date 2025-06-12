@@ -8,12 +8,15 @@ nx, ny, nz = 4, 6, 4  # 超胞尺寸
 a1 = np.array([2.456, 0.0, 0.0])
 a2 = np.array([-1.228, 2.126958, 0.0])
 a3 = np.array([0.0, 0.0, 7.0])
+a4 = np.array([2.456, -1.228, 0.0])
+a5 = np.array([0.0, 2.126958, 0.0])
+a6 = np.array([0.0, 0.0, 7.0])
 lattice_vectors = np.array([a1, a2, a3])
 inv_lattice_vectors = np.linalg.inv(lattice_vectors.T)
 supercell_vectors = np.array([
-    nx * a1,
-    ny * a2,
-    nz * a3
+    nx * a4,
+    ny * a5,
+    nz * a6
 ])
 inv_supercell = np.linalg.inv(supercell_vectors.T)
 
@@ -141,7 +144,7 @@ current_positions = positions.copy()
 # 模拟主循环
 trajectory = []
 
-with h5py.File("graphite_simulation.h5", "w") as h5file:
+with h5py.File("graphite_simulation_2.h5", "w") as h5file:
     flat_data = h5file.create_dataset("trajetory", (steps*N_particles, 5), dtype='f8')
     
 

@@ -7,6 +7,9 @@ from tqdm import tqdm
 a1 = np.array([2.456, 0.0, 0.0])
 a2 = np.array([-1.228, 2.126958, 0.0])
 a3 = np.array([0.0, 0.0, 7.0])
+a4 = np.array([2.456, -1.228, 0.0])
+a5 = np.array([0.0, 2.126958, 0.0])
+a6 = np.array([0.0, 0.0, 7.0])
 # 初始条件
 nx, ny, nz = 6, 6, 4
 # 模拟参数
@@ -22,7 +25,14 @@ basis_frac = np.array([
     [1/3, 2/3, 0.25],
     [2/3, 1/3, 0.75]
 ])
-
+lattice_vectors = np.array([a1, a2, a3])
+inv_lattice_vectors = np.linalg.inv(lattice_vectors.T)
+supercell_vectors = np.array([
+    nx * a4,
+    ny * a5,
+    nz * a6
+])
+inv_supercell = np.linalg.inv(supercell_vectors.T)
 # 一些参数
 a = 2.456
 c = 7.0
@@ -149,6 +159,45 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                     if j not in boundary:
                         accelerations[j] -= force_vector / mass
         return accelerations , forces
+    if boundarycondition == 3: 
+        """
+        这是从原理出发的周期性边界条件
+        将笛卡尔坐标转换为晶格坐标，
+        计算最小晶格坐标差，转换回笛卡尔坐标，
+        """
+        N = len(positions)
+        accelerations = np.zeros((N, 3))
+        pos = positions[:, :3]
+        forces = np.zeros((N, N, 3))
+    
+        for i in range(N):
+            for j in range(i + 1, N):
+      
+                lattice_coords_i = np.dot(pos[i], inv_supercell)
+                lattice_coords_j = np.dot(pos[j], inv_supercell)
+
+          
+                lattice_rij = lattice_coords_i - lattice_coords_j
+
+          
+                llattice_rij = lattice_rij - np.round(lattice_rij)
+                # 将晶格坐标差转换回笛卡尔坐标
+                rij = np.dot(lattice_rij, supercell_vectors.T)
+            
+                # 计算距离
+                r = np.linalg.norm(rij)
+        
+                if 0.1 < r < cutoff:
+                    r6 = (sigma / r) ** 6
+                    r12 = r6 ** 2
+                    force_scalar = 24 * epsilon * (2 * r12 - r6) / r**2
+                    force_vector = force_scalar * rij
+
+                    accelerations[i] += force_vector / mass
+                    accelerations[j] -= force_vector / mass
+                    forces[i, j] = force_vector
+                    forces[j, i] = -force_vector
+        return accelerations,forces
 
 # 使用verlet算法计算新位置
 def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.0):
@@ -161,7 +210,7 @@ def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.
     a_unit = eV / amu / angstrom**2  # Å/s²
     if prev_positions is None:
         # Initialize velocities using Maxwell-Boltzmann distribution
-        temperature = 10  # Kelvin
+        temperature = 0  # Kelvin
         k_B = 1.380649e-23  # J/K
         mass_kg = mass * amu  # Convert atomic mass to kg
         std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
@@ -179,12 +228,26 @@ def compute_velocity(current_positions, prev_positions, dt):
     return (current_positions[:, :3] - prev_positions[:, :3]) / dt
 
 #边界条件处理出界原子
-def boundary_conditions(positions, box_size):
+def boundary_conditions_2(positions, box_size):
     wrapped_positions = np.copy(positions)
     for i in range(3):
         wrapped_positions[:, i] = np.mod(wrapped_positions[:, i], box_size[i])
     return wrapped_positions
-
+def boundary_conditions(positions, box_size):
+    # 先转换为晶格坐标
+    frac_coords = np.dot(positions[:, :3], inv_supercell)
+    
+    # 对每一维做模运算，实现周期性边界
+    frac_coords = frac_coords % 1.0  # 自动限制在 [0, 1)
+    
+    # 转换回笛卡尔坐标
+    wrapped_cartesian = np.dot(frac_coords, supercell_vectors.T)
+    
+    # 保留原来的时间维度（或其他额外列）
+    wrapped_positions = np.copy(positions)
+    wrapped_positions[:, :3] = wrapped_cartesian
+    
+    return wrapped_positions
 # 初始化结构
 
 positions,boundary = generate_graphite(nx, ny, nz)
