@@ -66,7 +66,7 @@ c = 7.0
 sigma_between_layer = np.sqrt((a**2)/3 + (c/2)**2)
 
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=1.2633, sigma=sigma_between_layer, mass=12.0, cutoff=4, boundarycondition = 0):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 0):
     if boundarycondition == 0 : # 无边界
         N = len(positions)
         accelerations = np.zeros((N, 3))

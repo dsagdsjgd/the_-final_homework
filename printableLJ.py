@@ -34,8 +34,8 @@ def generate_graphite(nx, ny, nz):
         for j in range(ny):
             for k in range(nz):
                 shift = i*a1 + j*a2 + k*a3
-                for frac in basis_frac:
-                    pos = frac[0] * a1 + frac[1] * a2 + frac[2] * a3
+                for l in range(len(basis_frac)):
+                    pos = basis_frac[l][0] * a1 + basis_frac[l][1] * a2 + basis_frac[l][2] * a3
                     xyz = pos + shift
                     positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间
                     
@@ -45,48 +45,54 @@ def generate_graphite(nx, ny, nz):
                     if i == 0 or i == nx-1:
                         is_boundary = True
                     # 检查y方向边界
-                    if j == 0 or j == ny-1:
+                    if j == 0 and (l == 0 or l == 1):
+                        is_boundary = True
+                    if j == ny-1 and (l == 2 or l == 3):
                         is_boundary = True
                     # 检查z方向边界
-                    if k == 0 or k == nz-1:
+                    if k == 0 and (l == 0 or l == 2):
+                        is_boundary = True
+                    if k == nz-1 and (l == 1 or l == 3):
                         is_boundary = True
                     
                     if is_boundary:
-                        boundary.append((atom_index,i,j,k))
+                        boundary.append((atom_index,i,j,k,l))
                     
                     atom_index += 1
     
     return np.array(positions), boundary
 
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.418, mass=12.0, cutoff=8.5):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4):
     N = len(positions)
     accelerations = np.zeros((N, 3))
     forces = np.zeros((N, N, 3))  # 存储两两之间的力
     pos = positions[:, :3]
+    periodicpos = []
+    periodicpos.append(pos)
+    periodicpos.append(pos+a1*nx)
+    periodicpos.append(pos-a1*nx)
+    periodicpos.append(pos+a2*ny)
+    periodicpos.append(pos-a2*ny)
+    periodicpos.append(pos+a3*nz)
+    periodicpos.append(pos-a3*nz)
 
     for i in range(N):
         for j in range(i + 1, N):
-            rij = pos[i] - pos[j]
-            if (i%nz == 0 and j%nz == nz-1): # z方向上都在边界上
-                rij = rij + nz*a3
-            if (i%(ny*nz)//nz == 0 and j%(ny*nz)//nz == ny-1): # y方向上
-                rij = rij+ ny*a2
-            if (i//(ny*nz) == 0 and j//(ny*nz) == nx-1): # x方向上
-                rij = rij + nx*a1
-            
-            r = np.linalg.norm(rij)
-            if r < cutoff:
-                r6 = (sigma / r) ** 6
-                r12 = r6 ** 2
-                force_scalar = 4 * epsilon * (12 * r12 - 6 * r6) / r**2
-                force_vector = force_scalar * rij
-                forces[i, j] = force_vector
-                forces[j, i] = -force_vector
-                accelerations[i] += force_vector / mass
-                accelerations[j] -= force_vector / mass
+            # 对pos[j]进行调整
+            for k in range(7):
+                rij = pos[i] - periodicpos[k][j]
+                r = np.linalg.norm(rij)
+                if r < cutoff:
+                    r6 = (sigma / r) ** 6
+                    r12 = r6 ** 2
+                    force_scalar = 4 * epsilon * (12 * r12 - 6 * r6) / r**2
+                    force_vector = force_scalar * rij
+                    forces[i, j] = force_vector
+                    forces[j, i] = -force_vector
+                    accelerations[i] += force_vector / mass
+                    accelerations[j] -= force_vector / mass
 
     return accelerations, forces
-
 
 def compute_new_positions(positions, accelerations, prev_positions, dt=0.01):
     N = len(positions)
@@ -110,7 +116,7 @@ def compute_velocity(current_positions, prev_positions, dt):
     return (current_positions[:, :3] - prev_positions[:, :3]) / dt
 
 # 初始化结构
-nx, ny, nz = 3, 6, 4
+nx, ny, nz = 5, 5, 4
 positions,boundary = generate_graphite(nx, ny, nz)
 N_particles = len(positions)
 particle_ids = np.arange(N_particles)
@@ -123,7 +129,7 @@ positions = boundary_conditions(positions, box_size)
 print(boundary)
 
 # 模拟参数
-dt = 0.01
+dt = 0.1
 steps = 30
 prev_positions = None
 current_positions = positions.copy()
@@ -154,13 +160,14 @@ for step in tqdm(range(steps)):
         )
 
     output_file.write("# Forces (selected pairs) at step {}\n".format(step))
-    for i in range(N_particles):
-        for j in range(i+1, N_particles):
-            output_file.write(
-                f"# Force {i}-{j}: "
-                f"{forces[i,j,0]:12.8f} {forces[i,j,1]:12.8f} {forces[i,j,2]:12.8f} "
-                f"|r|={np.linalg.norm(new_positions[i,:3]-new_positions[j,:3]):6.3f} \n"
-            )
+    if step%50==0 :
+        for i in range(N_particles):
+            for j in range(i+1, N_particles):
+                output_file.write(
+                    f"# Force {i}-{j}: "
+                    f"{forces[i,j,0]:12.8f} {forces[i,j,1]:12.8f} {forces[i,j,2]:12.8f} "
+                    f"|r|={np.linalg.norm(new_positions[i,:3]-new_positions[j,:3]):6.3f} \n"
+                )
     output_file.write("# -------------------------------------------------\n")
     
     prev_positions = current_positions.copy()
