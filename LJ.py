@@ -84,7 +84,7 @@ def generate_graphite(nx, ny, nz):
     return np.array(positions), boundary
 
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 2):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 3):
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
     if boundarycondition == 0 : # 无边界
         N = len(positions)
@@ -210,7 +210,7 @@ def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.
     a_unit = eV / amu / angstrom  # Å/s²
     if prev_positions is None:
         # Initialize velocities using Maxwell-Boltzmann distribution
-        temperature = 20  # Kelvin
+        temperature = 1  # Kelvin
         k_B = 1.380649e-23  # J/K
         mass_kg = mass * amu  # Convert atomic mass to kg
         std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
