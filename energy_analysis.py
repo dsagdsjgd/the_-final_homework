@@ -12,51 +12,50 @@ epsilon = 0.0067  # eV
 sigma = 1.2633    # Å
 cutoff = 4.0      # Å
 
-angstrom_to_meter = 1e-10
 eV_to_J = 1.60218e-19
+angstrom_to_meter = 1e-10
 
 # === 读取数据 ===
 with h5py.File("graphite_simulation.h5", "r") as f:
-    data = f["trajetory"][:]  # shape: (steps * N_particles, 5)
+    pos_data = f["trajetory"][:]           # [id, x, y, z, t]
+    vel_data = f["velocity_traj"][:]        # [id, vx, vy, vz, t]
 
-particle_ids = data[:, 0].astype(int)
-positions = data[:, 1:4]      # 单位：Å
-times = data[:, 4]            # 单位：s
+# === 解包 ===
+particle_ids = pos_data[:, 0].astype(int)
+positions = pos_data[:, 1:4]     # Å
+times = pos_data[:, 4]           # s
 
+velocities = vel_data[:, 1:4]    # m/s
+vel_times = vel_data[:, 4]       # s
+
+# === 基本信息 ===
 unique_times = np.unique(times)
 unique_ids = np.unique(particle_ids)
 N_particles = len(unique_ids)
 N_steps = len(unique_times)
 
-# === 重塑位置数组 ===
-positions_reshaped = positions.reshape((N_steps, N_particles, 3))  # 单位：Å
+# === 重塑位置、速度数组 ===
+positions_reshaped = positions.reshape((N_steps, N_particles, 3))    # Å
+velocities_reshaped = velocities.reshape((N_steps, N_particles, 3))  # m/s
 
 # === 能量存储 ===
 kinetic_energy_list = []
 potential_energy_list = []
 total_energy_list = []
 
-prev_positions = None
-prev_time = None
-
 for step in tqdm(range(N_steps)):
-    pos = positions_reshaped[step]            # 单位：Å
-    time = unique_times[step]                 # 单位：s
+    pos = positions_reshaped[step]      # Å
+    vel = velocities_reshaped[step]     # m/s
 
     # ---- 动能 ----
-    if prev_positions is not None:
-        dt = time - prev_time                 # 单位：s
-        velocities = (pos - prev_positions) * angstrom_to_meter / dt  # m/s
-        speeds_sq = np.sum(velocities**2, axis=1)
-        kinetic_energy = 0.5 * mass_kg * np.sum(speeds_sq) / eV_to_J  # 转 eV
-    else:
-        kinetic_energy = 0.0
+    speeds_sq = np.sum(vel**2, axis=1)  # 每粒子速度平方
+    kinetic_energy = 0.5 * mass_kg * np.sum(speeds_sq) / eV_to_J  # 总动能 (eV)
 
-    # ---- 势能（Lennard-Jones）----
+    # ---- 势能 ----
     potential_energy = 0.0
     for i in range(N_particles):
         for j in range(i + 1, N_particles):
-            rij = pos[i] - pos[j]             # 单位：Å
+            rij = pos[i] - pos[j]
             r = np.linalg.norm(rij)
             if r < cutoff:
                 r6 = (sigma / r) ** 6
@@ -68,11 +67,8 @@ for step in tqdm(range(N_steps)):
     potential_energy_list.append(potential_energy)
     total_energy_list.append(kinetic_energy + potential_energy)
 
-    prev_positions = pos.copy()
-    prev_time = time
-
 # === 画图 ===
-times_ps = unique_times * 1e12  # 转为皮秒用于显示
+times_ps = unique_times * 1e12  # s -> ps
 
 plt.figure(figsize=(8, 5))
 plt.plot(times_ps, kinetic_energy_list, label="Kinetic Energy (eV)")

@@ -14,10 +14,18 @@ a6 = np.array([0.0, 0.0, 7.0])
 nx, ny, nz = 6, 6, 4
 # 模拟参数
 dt = 1e-13 # 0.1 ps
-steps = 10
+steps = 50
 # 是否写入文件
 writetext = True
-
+temperature = 0  # Kelvin
+eV = 1.602176634e-19  # J/eV
+amu = 1.66053906660e-27  # kg
+angstrom = 1e-10  # Å to m
+mass=12.0
+a_unit = eV / amu / angstrom  # Å/s
+k_B = 1.380649e-23  # J/K
+mass_kg = mass * amu  # Convert atomic mass to kg
+std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
 # 基元原子（分数坐标）
 basis_frac = np.array([
     [0.0, 0.0, 0.25],
@@ -225,20 +233,11 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma
         return accelerations,forces
 
 # 使用verlet算法计算新位置
-def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.0):
+def compute_new_positions(positions, accelerations, prev_positions, dt):
     N = len(positions)
     new_positions = np.copy(positions)
-    # Convert accelerations to appropriate units (eV/Å(amu) to Å/s²)
-    eV = 1.602176634e-19  # J/eV
-    amu = 1.66053906660e-27  # kg
-    angstrom = 1e-10  # Å to m
-    a_unit = eV / amu / angstrom  # Å/s²
     if prev_positions is None:
         # Initialize velocities using Maxwell-Boltzmann distribution
-        temperature = 0  # Kelvin
-        k_B = 1.380649e-23  # J/K
-        mass_kg = mass * amu  # Convert atomic mass to kg
-        std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
         velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
         mean_velocity = np.mean(velocity, axis=0)
         velocity -= mean_velocity  # 不受外力，质心速度为零
@@ -248,11 +247,6 @@ def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.
         new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * a_unit * dt**2
     return new_positions
 
-# 计算速度
-def compute_velocity(current_positions, prev_positions, dt):
-    if prev_positions is None:
-        return np.zeros_like(current_positions[:, :3])
-    return (current_positions[:, :3] - prev_positions[:, :3]) / dt
 
 #边界条件处理出界原子
 def boundary_conditions_2(positions, box_size):
@@ -315,7 +309,9 @@ plt.tight_layout()
 # 模拟参数
 prev_positions = None
 current_positions = positions.copy()
-
+velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
+mean_velocity = np.mean(velocity, axis=0)
+velocity -= mean_velocity
 # 模拟主循环
 trajectory = []
 
@@ -328,14 +324,14 @@ if writetext:
 
 with h5py.File("graphite_simulation.h5", "w") as h5file:
     flat_data = h5file.create_dataset("trajetory", (steps*N_particles, 5), dtype='f8')
-
+    vel_dataset = h5file.create_dataset("velocity_traj", (steps * N_particles, 5), dtype='f8')
     # 模拟主循环
     for step in tqdm(range(steps)):
         acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
-        velocity = compute_velocity(current_positions, prev_positions, dt)
+        velocity = velocity + 0.5 * acc * dt  
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
-        time_value = step * dt
+        time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
         
         # 写入数据：仅 xyz 坐标
         step_data = np.hstack([
@@ -346,6 +342,12 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
 
         # 写入平铺数据
         flat_data[step * N_particles : (step + 1) * N_particles] = step_data
+        step_velocity_data = np.hstack([
+            particle_ids.reshape(-1, 1),
+            velocity[:, :3],
+            np.full((N_particles, 1), time_value)
+        ])
+        vel_dataset[step * N_particles : (step + 1) * N_particles] = step_velocity_data
         if writetext:
             # 写入每个粒子的信息
             for i in range(N_particles):
