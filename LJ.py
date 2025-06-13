@@ -33,10 +33,6 @@ supercell_vectors = np.array([
     nz * a6
 ])
 inv_supercell = np.linalg.inv(supercell_vectors.T)
-# 一些参数
-a = 2.456
-c = 7.0
-sigma_between_layer = np.sqrt((a**2)/3 + (c/2)**2)
 
 #返回的boundary是N*5列表，除了原子序号还包含了原子是在哪个边界的信息
 def generate_graphite(nx, ny, nz):
@@ -83,9 +79,22 @@ def generate_graphite(nx, ny, nz):
     
     return np.array(positions), boundary
 
+def smooth_cutoff(r, ro, rc):
+    """Cubic smooth cutoff function for LJ potential between ro and rc."""
+    if r < ro:
+        return 1.0
+    elif r < rc:
+        x = (rc - r) / (rc - ro)
+        return 6 * x**5 - 15 * x**4 + 10 * x**3
+    else:
+        return 0.0
+
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 2):
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma=3.440, D_e=6.0, a=2.0, r_e=1.42, mass=12.0, cutoff=10, cutoff_face=1.0, boundarycondition = 2): # cutoff=2.5*3.440
+# def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 1):
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
+    ro = 8.0
+    rc = 10.0
     if boundarycondition == 0 : # 无边界
         N = len(positions)
         accelerations = np.zeros((N, 3))
@@ -97,9 +106,13 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                 rij = pos[i] - pos[j] 
                 r = np.linalg.norm(rij)
                 if r < cutoff:
-                    r6 = (sigma / r) ** 6
-                    r12 = r6 ** 2
-                    force_scalar = 24 * epsilon * (2*r12 - r6) / r**2
+                    if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                        exp_term = np.exp(-a * (r - r_e))
+                        force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
+                    else: # 面间相互作用用LJ势描述
+                        r6 = (sigma / r) ** 6
+                        r12 = r6 ** 2
+                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2 * smooth_cutoff(r, ro, rc)
                     force_vector = force_scalar * rij
                     forces[i, j] = force_vector
                     forces[j, i] = -force_vector
@@ -127,14 +140,18 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                     rij = pos[i] - periodicpos[k][j]
                     r = np.linalg.norm(rij)
                     if r < cutoff:
-                        r6 = (sigma / r) ** 6
-                        r12 = r6 ** 2
-                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2
-                        force_vector = force_scalar * rij
-                        forces[i, j] = force_vector
-                        forces[j, i] = -force_vector
-                        accelerations[i] += force_vector / mass
-                        accelerations[j] -= force_vector / mass
+                        if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                            exp_term = np.exp(-a * (r - r_e))
+                            force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
+                        else: # 面间相互作用用LJ势描述
+                            r6 = (sigma / r) ** 6
+                            r12 = r6 ** 2
+                            force_scalar = 24 * epsilon * (2*r12 - r6) / r**2 * smooth_cutoff(r, ro, rc)
+                    force_vector = force_scalar * rij
+                    forces[i, j] = force_vector
+                    forces[j, i] = -force_vector
+                    accelerations[i] += force_vector / mass
+                    accelerations[j] -= force_vector / mass
 
         return accelerations, forces
     if boundarycondition == 2: # 固定边界
@@ -148,9 +165,13 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                 rij = pos[i] - pos[j]
                 r = np.linalg.norm(rij)
                 if r < cutoff:
-                    r6 = (sigma / r) ** 6
-                    r12 = r6 ** 2
-                    force_scalar = 4 * epsilon * (12 * r12 - 6 * r6) / r**2
+                    if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                        exp_term = np.exp(-a * (r - r_e))
+                        force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
+                    else: # 面间相互作用用LJ势描述
+                        r6 = (sigma / r) ** 6
+                        r12 = r6 ** 2
+                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2 * smooth_cutoff(r, ro, rc)
                     force_vector = force_scalar * rij
                     forces[i, j] = force_vector
                     forces[j, i] = -force_vector
@@ -188,9 +209,13 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma
                 r = np.linalg.norm(rij)
         
                 if 0.1 < r < cutoff:
-                    r6 = (sigma / r) ** 6
-                    r12 = r6 ** 2
-                    force_scalar = 24 * epsilon * (2 * r12 - r6) / r**2
+                    if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                        exp_term = np.exp(-a * (r - r_e))
+                        force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
+                    else: # 面间相互作用用LJ势描述
+                        r6 = (sigma / r) ** 6
+                        r12 = r6 ** 2
+                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2 * smooth_cutoff(r, ro, rc)
                     force_vector = force_scalar * rij
 
                     accelerations[i] += force_vector / mass
@@ -215,6 +240,8 @@ def compute_new_positions(positions, accelerations, prev_positions, dt, mass=12.
         mass_kg = mass * amu  # Convert atomic mass to kg
         std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
         velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
+        mean_velocity = np.mean(velocity, axis=0)
+        velocity -= mean_velocity  # 不受外力，质心速度为零
         # velocity = np.zeros((N, 3))
         new_positions[:, :3] = positions[:, :3] + velocity / angstrom * dt + 0.5 * accelerations * a_unit * dt**2
     else:
@@ -283,7 +310,7 @@ ax.set_xlabel("X (Å)")
 ax.set_ylabel("Y (Å)")
 ax.set_zlabel("Z (Å)")
 plt.tight_layout()
-plt.show()
+# plt.show()
 
 # 模拟参数
 prev_positions = None
@@ -347,3 +374,77 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
 
     if writetext:
         output_file.close()
+
+
+### forview.py
+import h5py
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.animation import FuncAnimation
+
+# 读取数据
+with h5py.File("graphite_simulation.h5", "r") as f:
+    data = f["trajetory"][:]  # shape: (steps * N_particles, 5)
+
+# 提取信息
+particle_ids = data[:, 0].astype(int)
+positions = data[:, 1:4]
+times = data[:, 4]
+
+def func(i, j, k):
+    return i * (ny * nz) + j * (nz) + k
+# nx, ny, nz = 6, 6, 4
+
+# 只选择边界内的原子，否则边界处横跳干扰视线
+def select_in_boundary():
+    in_boundary = []
+    for i in range(1, nx + 1):
+        for j in range(1, ny + 1):
+            for k in range(1, nz + 1):
+                in_boundary.append(func(i, j, k))
+    particle_ids = particle_ids[in_boundary]
+    positions = positions[in_boundary]
+    times = times[in_boundary]
+#select_in_boundary()
+
+unique_times = np.unique(times)
+unique_ids = np.unique(particle_ids)
+N_particles = len(unique_ids)
+N_steps = len(unique_times)
+
+# 为每个时间步准备数据索引
+# 把数据重塑成 (steps, N_particles, 3)
+positions_reshaped = positions.reshape((N_steps, N_particles, 3))
+
+# 画图初始化
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+# 给边界处原子染色，观察零温下原子运动是否符合微扰条件
+min_atom_indices = func(nx//2, ny//2, nz//2)
+max_atom_indices = nx - 1
+colors = np.full(N_particles, 'black')
+colors[min_atom_indices] = 'red'
+colors[max_atom_indices] = 'green'
+
+scat = ax.scatter(np.zeros(N_particles), np.zeros(N_particles), np.zeros(N_particles), s=30, c=colors)
+# scat = ax.scatter([], [], [], s=30)
+
+ax.set_xlim(np.min(positions[:,0]), np.max(positions[:,0]))
+ax.set_ylim(np.min(positions[:,1]), np.max(positions[:,1]))
+ax.set_zlim(np.min(positions[:,2]), np.max(positions[:,2]))
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+ax.set_title('Graphite Simulation')
+
+def update(frame):
+    pos = positions_reshaped[frame]
+    scat._offsets3d = (pos[:,0], pos[:,1], pos[:,2])
+    ax.set_title(f"Time = {(unique_times[frame]*1e12):.3f} ps")
+    return scat,
+
+ani = FuncAnimation(fig, update, frames=N_steps, interval=100, blit=False)
+
+plt.show()
