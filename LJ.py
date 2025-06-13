@@ -13,16 +13,16 @@ a6 = np.array([0.0, 0.0, 7.0])
 # 初始条件
 nx, ny, nz = 6, 6, 4
 # 模拟参数
-dt = 1e-13 # 0.1 ps
-steps = 50
+dt = 1e-14 # 10 fs
+steps = 10
 # 是否写入文件
-writetext = True
+writetext = False
 temperature = 0  # Kelvin
 eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
 angstrom = 1e-10  # Å to m
 mass=12.0
-a_unit = eV / amu / angstrom  # Å/s
+a_unit = eV / (amu*angstrom*100)  # Å/s
 k_B = 1.380649e-23  # J/K
 mass_kg = mass * amu  # Convert atomic mass to kg
 std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
@@ -63,7 +63,6 @@ def generate_graphite(nx, ny, nz):
                     pos = basis_frac[l][0] * a1 + basis_frac[l][1] * a2 + basis_frac[l][2] * a3
                     xyz = pos + shift
                     positions.append(np.append(xyz, 0.0))  # 最后一位是占位时间
-                    
                     # 检查是否为边界原子
                     is_boundary = False
                     # 检查x方向边界
@@ -98,7 +97,7 @@ def smooth_cutoff(r, ro, rc):
         return 0.0
 
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma=3.440, D_e=6.0, a=2.0, r_e=1.42, mass=12.0, cutoff=10, cutoff_face=1.0, boundarycondition = 3): # cutoff=2.5*3.440
+def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma=1.26, D_e=6.0, a=2.0, r_e=1.42, mass=12.0, cutoff=10, cutoff_face=1.0, boundarycondition = 3): # cutoff=2.5*3.440
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 1):
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
     ro = 8.0
@@ -328,7 +327,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     # 模拟主循环
     for step in tqdm(range(steps)):
         acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
-        velocity = velocity + 0.5 * acc * dt  
+        velocity = velocity + 0.5 * acc *a_unit* dt  
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
