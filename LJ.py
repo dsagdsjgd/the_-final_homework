@@ -25,7 +25,7 @@ special_follow = 1
 # 是否使用两个势能
 two_potential = True
 # 温度
-temperature = 11.0  # Kelvin
+temperature = 0  # Kelvin
 # 一些物理学常数
 eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
@@ -321,7 +321,7 @@ current_positions = positions.copy()
 velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
 mean_velocity = np.mean(velocity, axis=0)
 velocity -= mean_velocity
-print(velocity[1])
+
 # 模拟主循环
 trajectory = []
 
@@ -339,9 +339,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     for step in tqdm(range(steps)):
         acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
         velocity = velocity + 0.5 * acc *a_unit* dt  
-        c = acc * a_unit * dt
-        print(velocity[1])
-        print(c[1])
+  
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1

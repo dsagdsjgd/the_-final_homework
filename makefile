@@ -18,4 +18,5 @@ energy:
 clean:
 	rm -f graphite_simulation.h5
 	rm -f dynamics_output.txt
+	rm -f graphite_sim.gif
 	echo "Cleaned up generated files."
