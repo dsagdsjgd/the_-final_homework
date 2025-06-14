@@ -25,7 +25,7 @@ special_follow = 1
 # 是否使用两个势能
 two_potential = True
 # 温度
-temperature = 0  # Kelvin
+temperature = 20  # Kelvin
 # 一些物理学常数
 eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
@@ -254,15 +254,10 @@ def compute_new_positions(positions, accelerations, prev_positions, dt):
         new_positions[:, :3] = positions[:, :3] + velocity / angstrom * dt + 0.5 * accelerations * a_unit * dt**2
     else:
         new_positions[:, :3] = 2 * positions[:, :3] - prev_positions[:, :3] + accelerations * a_unit * dt**2
+        print(new_positions[0])
+        print(prev_positions[0])
     return new_positions
 
-
-#边界条件处理出界原子
-def boundary_conditions_2(positions, box_size):
-    wrapped_positions = np.copy(positions)
-    for i in range(3):
-        wrapped_positions[:, i] = np.mod(wrapped_positions[:, i], box_size[i])
-    return wrapped_positions
 def boundary_conditions(positions, box_size):
     # 先转换为晶格坐标
     frac_coords = np.dot(positions[:, :3], inv_supercell)
@@ -321,7 +316,7 @@ current_positions = positions.copy()
 velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
 mean_velocity = np.mean(velocity, axis=0)
 velocity -= mean_velocity
-
+acc, _ = compute_accelerations(current_positions, boundary, nx, ny, nz)
 # 模拟主循环
 trajectory = []
 
@@ -337,11 +332,11 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     vel_dataset = h5file.create_dataset("velocity_traj", (steps * N_particles, 5), dtype='f8')
     # 模拟主循环
     for step in tqdm(range(steps)):
-        acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
-        velocity = velocity + 0.5 * acc *a_unit* dt  
-  
-        new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
+        new_positions = np.copy(current_positions)
+        new_positions[:, :3] += velocity * dt / angstrom + 0.5 * acc * a_unit * dt**2
         new_positions = boundary_conditions(new_positions, box_size)
+        new_acc, forces = compute_accelerations(new_positions, boundary, nx, ny, nz)
+        velocity += 0.5 * (acc + new_acc) * dt
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
         
         # 写入数据：仅 xyz 坐标
@@ -394,7 +389,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
         
         prev_positions = current_positions.copy()
         current_positions = new_positions.copy()
-
+        acc = new_acc 
     if writetext:
         output_file.close()
 
