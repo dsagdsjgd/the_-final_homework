@@ -16,8 +16,12 @@ nx, ny, nz = 6, 6, 4
 dt = 1e-14 # 10 fs
 steps = 10
 # 是否写入文件
-writetext = False
-temperature = 0  # Kelvin
+writetext = True
+# 跟踪哪一个原子
+special_follow = 1
+# 是否使用两个势能
+two_potential = True
+temperature = 11.0  # Kelvin
 eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
 angstrom = 1e-10  # Å to m
@@ -113,7 +117,7 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma
                 rij = pos[i] - pos[j] 
                 r = np.linalg.norm(rij)
                 if r < cutoff:
-                    if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                    if np.abs(rij[2]) < cutoff_face and two_potential == True: # 面内共价键用Morse势近似
                         exp_term = np.exp(-a * (r - r_e))
                         force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
                     else: # 面间相互作用用LJ势描述
@@ -147,7 +151,7 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma
                     rij = pos[i] - periodicpos[k][j]
                     r = np.linalg.norm(rij)
                     if r < cutoff:
-                        if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                        if np.abs(rij[2]) < cutoff_face and two_potential == True: # 面内共价键用Morse势近似
                             exp_term = np.exp(-a * (r - r_e))
                             force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
                         else: # 面间相互作用用LJ势描述
@@ -172,7 +176,7 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma
                 rij = pos[i] - pos[j]
                 r = np.linalg.norm(rij)
                 if r < cutoff:
-                    if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                    if np.abs(rij[2]) < cutoff_face and two_potential == True: # 面内共价键用Morse势近似
                         exp_term = np.exp(-a * (r - r_e))
                         force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
                     else: # 面间相互作用用LJ势描述
@@ -216,7 +220,7 @@ def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma
                 r = np.linalg.norm(rij)
         
                 if 0.1 < r < cutoff:
-                    if np.abs(rij[2]) < cutoff_face: # 面内共价键用Morse势近似
+                    if np.abs(rij[2]) < cutoff_face and two_potential == True: # 面内共价键用Morse势近似
                         exp_term = np.exp(-a * (r - r_e))
                         force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
                     else: # 面间相互作用用LJ势描述
@@ -350,16 +354,26 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
         if writetext:
             # 写入每个粒子的信息
             for i in range(N_particles):
-                # 格式: 步数 时间 粒子ID x y z vx vy vz ax ay az
-                output_file.write(
-                    f"{step:5d} {time_value:8.4f} {i:5d} "
-                    f"{new_positions[i,0]:10.5f} {new_positions[i,1]:10.5f} {new_positions[i,2]:10.5f} "
-                    f"{velocity[i,0]:10.5f} {velocity[i,1]:10.5f} {velocity[i,2]:10.5f} "
-                    f"{acc[i,0]:10.5f} {acc[i,1]:10.5f} {acc[i,2]:10.5f}\n"
-                )
+                if special_follow !=0:
+                    if i == special_follow:
+                        # 格式: 步数 时间 粒子ID x y z vx vy vz ax ay az
+                        output_file.write(
+                            f"{step:5d} {time_value:8.4e} {i:5d} "
+                            f"{new_positions[i,0]:10.5e} {new_positions[i,1]:10.5e} {new_positions[i,2]:10.5e} "
+                            f"{(velocity[i,0]/angstrom*dt):10.5e} {(velocity[i,1]/angstrom*dt):10.5e} {(velocity[i,2]/angstrom*dt):10.5e} "
+                            f"{(acc[i,0]* a_unit*dt*dt/angstrom):10.5e} {(acc[i,1]* a_unit*dt*dt/angstrom):10.5e} {(acc[i,2]* a_unit*dt*dt/angstrom):10.5e}\n"
+                        )
+                else:
+                    output_file.write(
+                        f"{step:5d} {time_value:8.4e} {i:5d} "
+                        f"{new_positions[i,0]:10.5e} {new_positions[i,1]:10.5e} {new_positions[i,2]:10.5e} "
+                        f"{(velocity[i,0]/angstrom*dt):10.5e} {(velocity[i,1]/angstrom*dt):10.5e} {(velocity[i,2]/angstrom*dt):10.5e} "
+                        f"{(acc[i,0]* a_unit*dt*dt/angstrom):10.5e} {(acc[i,1]* a_unit*dt*dt/angstrom):10.5e} {(acc[i,2]* a_unit*dt*dt/angstrom):10.5e}\n"
+                    )
+
 
             output_file.write("# Forces (selected pairs) at step {}\n".format(step))
-            if step % 50 == 0 :
+            if step % 50 == 0 and special_follow == 0:
                 for i in range(N_particles):
                     for j in range(i+1, N_particles):
                         if np.any(forces[i][j])!=0:

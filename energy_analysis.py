@@ -15,6 +15,9 @@ cutoff = 4.0      # Å
 eV_to_J = 1.60218e-19
 angstrom_to_meter = 1e-10
 
+# 是否画图
+doplot = False
+
 # === 读取数据 ===
 with h5py.File("graphite_simulation.h5", "r") as f:
     pos_data = f["trajetory"][:]           # [id, x, y, z, t]
@@ -68,15 +71,17 @@ for step in tqdm(range(N_steps)):
     total_energy_list.append(kinetic_energy + potential_energy)
 
 # === 画图 ===
-times_ps = unique_times * 1e12  # s -> ps
+if (doplot):
+    times_ps = unique_times * 1e12  # s -> ps
 
-plt.figure(figsize=(8, 5))
-plt.plot(times_ps, kinetic_energy_list, label="Kinetic Energy (eV)")
-plt.plot(times_ps, potential_energy_list, label="Potential Energy (eV)")
-plt.plot(times_ps, total_energy_list, label="Total Energy (eV)")
-plt.xlabel("Time (ps)")
-plt.ylabel("Energy (eV)")
-plt.title("Energy vs Time")
-plt.legend()
-plt.tight_layout()
-plt.show()
+    plt.figure(figsize=(8, 5))
+    plt.plot(times_ps, kinetic_energy_list, label="Kinetic Energy (eV)")
+    plt.plot(times_ps, potential_energy_list, label="Potential Energy (eV)")
+    plt.plot(times_ps, total_energy_list, label="Total Energy (eV)")
+    plt.xlabel("Time (ps)")
+    plt.ylabel("Energy (eV)")
+    plt.title("Energy vs Time")
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    print("\nResults saved to heat_capacity_results.dat")
