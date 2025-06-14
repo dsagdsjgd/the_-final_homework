@@ -15,13 +15,18 @@ nx, ny, nz = 6, 6, 4
 # 模拟参数
 dt = 1e-14 # 10 fs
 steps = 10
+# LJ模拟参数
+epsilon=0.0026
+sigma=1.26
 # 是否写入文件
 writetext = True
 # 跟踪哪一个原子
 special_follow = 1
 # 是否使用两个势能
 two_potential = True
+# 温度
 temperature = 11.0  # Kelvin
+# 一些物理学常数
 eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
 angstrom = 1e-10  # Å to m
@@ -30,6 +35,7 @@ a_unit = eV / (amu*angstrom*100)  # Å/s
 k_B = 1.380649e-23  # J/K
 mass_kg = mass * amu  # Convert atomic mass to kg
 std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
+
 # 基元原子（分数坐标）
 basis_frac = np.array([
     [0.0, 0.0, 0.25],
@@ -101,7 +107,7 @@ def smooth_cutoff(r, ro, rc):
         return 0.0
 
 # boundary参数是一个一维列表，包含原子序号
-def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0026, sigma=1.26, D_e=6.0, a=2.0, r_e=1.42, mass=12.0, cutoff=10, cutoff_face=1.0, boundarycondition = 3): # cutoff=2.5*3.440
+def compute_accelerations(positions, boundary, nx, ny, nz, D_e=6.0, a=2.0, r_e=1.42, mass=12.0, cutoff=10, cutoff_face=1.0, boundarycondition = 3): # cutoff=2.5*3.440
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=3.5, boundarycondition = 1):
 # def compute_accelerations(positions, boundary, nx, ny, nz, epsilon=0.0067, sigma=1.2633, mass=12.0, cutoff=4, boundarycondition = 1):
     ro = 8.0
