@@ -16,7 +16,7 @@ eV_to_J = 1.60218e-19
 angstrom_to_meter = 1e-10
 
 # 是否画图
-doplot = False
+doplot = True
 
 # === 读取数据 ===
 with h5py.File("graphite_simulation.h5", "r") as f:
@@ -28,7 +28,7 @@ particle_ids = pos_data[:, 0].astype(int)
 positions = pos_data[:, 1:4]     # Å
 times = pos_data[:, 4]           # s
 
-velocities = vel_data[:, 1:4]    # m/s
+velocities = vel_data[:, 1:4]   
 vel_times = vel_data[:, 4]       # s
 
 # === 基本信息 ===
@@ -60,7 +60,7 @@ for step in tqdm(range(N_steps)):
         for j in range(i + 1, N_particles):
             rij = pos[i] - pos[j]
             r = np.linalg.norm(rij)
-            if r < cutoff:
+            if 0.95 < r < cutoff:
                 r6 = (sigma / r) ** 6
                 r12 = r6 ** 2
                 potential_energy += 4 * epsilon * (r12 - r6)

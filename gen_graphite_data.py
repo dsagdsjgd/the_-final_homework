@@ -30,4 +30,4 @@ supercell = atoms.repeat((3, 3, 2))
 
 # 导出为 LAMMPS 数据文件
 write_lammps_data('graphite.data', supercell, atom_style='atomic')
-print("✅ 已生成 graphite.data 文件")
+

@@ -14,7 +14,7 @@ a6 = np.array([0.0, 0.0, 7.0])
 nx, ny, nz = 6, 6, 4
 # 模拟参数
 dt = 1e-14 # 10 fs
-steps = 10
+steps = 100
 # LJ模拟参数
 epsilon=0.0026
 sigma=1.26
@@ -31,7 +31,7 @@ eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
 angstrom = 1e-10  # Å to m
 mass=12.0
-a_unit = eV / (amu*angstrom*100)  # Å/s
+a_unit = eV / (amu*angstrom)  # Å/s
 k_B = 1.380649e-23  # J/K
 mass_kg = mass * amu  # Convert atomic mass to kg
 std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
@@ -225,14 +225,14 @@ def compute_accelerations(positions, boundary, nx, ny, nz, D_e=6.0, a=2.0, r_e=1
                 # 计算距离
                 r = np.linalg.norm(rij)
         
-                if 0.1 < r < cutoff:
+                if 0.95 < r < cutoff:
                     if np.abs(rij[2]) < cutoff_face and two_potential == True: # 面内共价键用Morse势近似
                         exp_term = np.exp(-a * (r - r_e))
                         force_scalar = 2 * a * D_e * (1 - exp_term) * exp_term
                     else: # 面间相互作用用LJ势描述
                         r6 = (sigma / r) ** 6
                         r12 = r6 ** 2
-                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2 * smooth_cutoff(r, ro, rc)
+                        force_scalar = 24 * epsilon * (2*r12 - r6) / r**2 
                     force_vector = force_scalar * rij
 
                     accelerations[i] += force_vector / mass
@@ -321,6 +321,7 @@ current_positions = positions.copy()
 velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
 mean_velocity = np.mean(velocity, axis=0)
 velocity -= mean_velocity
+print(velocity[1])
 # 模拟主循环
 trajectory = []
 
@@ -338,6 +339,9 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     for step in tqdm(range(steps)):
         acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
         velocity = velocity + 0.5 * acc *a_unit* dt  
+        c = acc * a_unit * dt
+        print(velocity[1])
+        print(c[1])
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
