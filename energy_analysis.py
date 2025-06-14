@@ -70,18 +70,29 @@ for step in tqdm(range(N_steps)):
     potential_energy_list.append(potential_energy)
     total_energy_list.append(kinetic_energy + potential_energy)
 
-# === 画图 ===
-if (doplot):
+if doplot:
     times_ps = unique_times * 1e12  # s -> ps
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(times_ps, kinetic_energy_list, label="Kinetic Energy (eV)")
-    plt.plot(times_ps, potential_energy_list, label="Potential Energy (eV)")
-    plt.plot(times_ps, total_energy_list, label="Total Energy (eV)")
-    plt.xlabel("Time (ps)")
-    plt.ylabel("Energy (eV)")
-    plt.title("Energy vs Time")
-    plt.legend()
+    fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
+
+    # --- 子图1：动能 ---
+    axs[0].plot(times_ps, kinetic_energy_list, color='tab:blue')
+    axs[0].set_ylabel("Kinetic Energy (eV)")
+    axs[0].set_title("Kinetic Energy vs Time")
+    axs[0].grid(True)
+
+    # --- 子图2：势能 ---
+    axs[1].plot(times_ps, potential_energy_list, color='tab:orange')
+    axs[1].set_ylabel("Potential Energy (eV)")
+    axs[1].set_title("Potential Energy vs Time")
+    axs[1].grid(True)
+
+    # --- 子图3：总能 ---
+    axs[2].plot(times_ps, total_energy_list, color='tab:green')
+    axs[2].set_xlabel("Time (ps)")
+    axs[2].set_ylabel("Total Energy (eV)")
+    axs[2].set_title("Total Energy vs Time")
+    axs[2].grid(True)
+
     plt.tight_layout()
     plt.show()
-    print("\nResults saved to heat_capacity_results.dat")

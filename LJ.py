@@ -333,10 +333,10 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     # 模拟主循环
     for step in tqdm(range(steps)):
         new_positions = np.copy(current_positions)
-        new_positions[:, :3] += velocity * dt / angstrom + 0.5 * acc * a_unit * dt**2
+        new_positions[:, :3] += velocity * dt / angstrom + 0.5 * acc * a_unit * dt**2 
         new_positions = boundary_conditions(new_positions, box_size)
         new_acc, forces = compute_accelerations(new_positions, boundary, nx, ny, nz)
-        velocity += 0.5 * (acc + new_acc) * dt
+        velocity += 0.5 * (acc + new_acc) * dt * a_unit * angstrom  # 更新速度
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
         
         # 写入数据：仅 xyz 坐标
