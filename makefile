@@ -19,4 +19,5 @@ clean:
 	rm -f graphite_simulation.h5
 	rm -f dynamics_output.txt
 	rm -f graphite_sim.gif
+	rm -f graphite_simulation_2.h5
 	echo "Cleaned up generated files."
