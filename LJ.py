@@ -14,7 +14,7 @@ a6 = np.array([0.0, 0.0, 7.0])
 nx, ny, nz = 6, 6, 4
 # 模拟参数
 dt = 1e-14 # 10 fs
-steps = 10
+steps = 50
 # LJ模拟参数
 epsilon=0.0026
 sigma=1.26
@@ -306,17 +306,19 @@ ax.set_xlabel("X (Å)")
 ax.set_ylabel("Y (Å)")
 ax.set_zlabel("Z (Å)")
 plt.tight_layout()
-# plt.show()
+plt.show()
 
 # 模拟参数
 prev_positions = None
 current_positions = positions.copy()
+initial_positions = positions.copy()
 velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
 mean_velocity = np.mean(velocity, axis=0)
 velocity -= mean_velocity
 
 # 模拟主循环
 trajectory = []
+msd_list = []  # 用于存储均方位移
 
 # 在模拟主循环之前添加文件打开操作 ， 打开可视化数据文件和txt数据文件
 if writetext:
@@ -332,6 +334,10 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     for step in tqdm(range(steps)):
         acc, forces = compute_accelerations(current_positions,boundary, nx, ny, nz)
         new_positions = compute_new_positions(current_positions, acc, prev_positions, dt)
+
+        msd = np.mean(np.sum((new_positions[:, :3] - initial_positions[:, :3])**2, axis=1))  # 计算均方位移
+        msd_list.append(msd)
+
         velocity = (new_positions-current_positions)*angstrom / dt  
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
@@ -390,3 +396,5 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
     if writetext:
         output_file.close()
 
+# 保存均方位移数据
+np.savetxt("msd.txt", msd_list, fmt='%.6f', header='Mean Squared Displacement (MSD) over time steps', comments='')
