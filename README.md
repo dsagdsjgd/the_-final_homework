@@ -7,6 +7,8 @@ this is for final homework
 确保目录下有graphite_simulation.h5，运行forview.py可以得到可视化动画，或者make view也可以得到相同结果  
 确保目录下有graphite_simulation.h5，运行energy_annlysis.py,可以得到系统的能量  
 确保目录下有graphite_simulation.h5，运行time_relation.py,可以得到速度关联函数  
-确保目录下有graphite_simulation.h5，运行compute_rdf.py,可以得到径向分布函数  
+确保目录下有graphite_simulation.h5，运行compute_rdf.py,可以得到径向分布函数
+确保目录下有graphite_simulation.h5，运行calculate_temperature.py,可以得到动力学温度
+确保目录下有msd.txt，运行msd.py可以得到均方位移和扩散系数
 DeepMD-test中有使用lammps进行的石墨分子动力学模拟，脚本为test.lmp,运行即可得到轨迹和能量文件，里面还有一个生成石墨晶格的脚本用于test.lmp  
 input.json文件为配置好的训练文件，按照转换文件的脚本可以得到符合格式的训练文件进行训练。
