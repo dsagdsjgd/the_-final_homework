@@ -1,0 +1,33 @@
+# 石墨晶体的真实分子动力学模拟
+
+units           metal
+dimension       3
+boundary        p p p
+atom_style      atomic
+
+read_data       graphite.data  # 你需要一个 real 单位的石墨晶体结构
+mass 1 12.01
+# 使用 AIREBO 势函数
+pair_style      airebo 3.0
+pair_coeff      * * CH.airebo C
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+# 初始速度设置
+velocity        all create 300.0 12345 dist gaussian  # 温度单位为 K
+
+# 控温控压 - NPT 可用于热膨胀模拟，NVT 用于恒温模拟
+fix             1 all nvt temp 300.0 300.0 100.0
+
+# 数据输出
+thermo          100
+thermo_style    custom step temp press pe ke etotal
+
+# 原子轨迹输出（用于可视化）
+dump            1 all custom 500 dump.graphite id type x y z vx vy vz
+dump_modify     1 sort id
+
+# 运行时间（单位为 fs）
+timestep        0.5
+run             20000

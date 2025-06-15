@@ -6,9 +6,9 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 
 # === 读取数据 ===
 with h5py.File("graphite_simulation.h5", "r") as f:
-    data = f["trajetory"][:]  # shape: (steps * N_particles, 5)
+    data = f["trajetory"][:]  
 
-# === 提取信息 ===
+
 particle_ids = data[:, 0].astype(int)
 positions = data[:, 1:4]
 times = data[:, 4]

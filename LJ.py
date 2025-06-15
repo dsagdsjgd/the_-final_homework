@@ -14,11 +14,7 @@ a6 = np.array([0.0, 0.0, 7.0])
 nx, ny, nz = 6, 6, 4
 # 模拟参数
 dt = 1e-14 # 10 fs
-<<<<<<< HEAD
-steps = 50
-=======
 steps = 100
->>>>>>> e4dae48 (保存本地修改)
 # LJ模拟参数
 epsilon=0.0026
 sigma=1.26
@@ -29,7 +25,7 @@ special_follow = 1
 # 是否使用两个势能
 two_potential = True
 # 温度
-temperature = 20 # Kelvin
+temperature = 0 # Kelvin
 # 一些物理学常数
 eV = 1.602176634e-19  # J/eV
 amu = 1.66053906660e-27  # kg
@@ -37,8 +33,8 @@ angstrom = 1e-10  # Å to m
 mass=12.0
 a_unit = eV / (amu*angstrom)  # Å/s
 k_B = 1.380649e-23  # J/K
-mass_kg = mass * amu  # Convert atomic mass to kg
-std_dev = np.sqrt(k_B * temperature / mass_kg)  # Standard deviation for velocity distribution
+mass_kg = mass * amu  # kg
+std_dev = np.sqrt(k_B * temperature / mass_kg) # m/s
 
 # 基元原子（分数坐标）
 basis_frac = np.array([
@@ -250,7 +246,7 @@ def compute_new_positions(positions, accelerations, prev_positions, dt):
     N = len(positions)
     new_positions = np.copy(positions)
     if prev_positions is None:
-        # Initialize velocities using Maxwell-Boltzmann distribution
+        # 初始速度按照玻尔兹曼分布
         velocity = np.random.normal(0, std_dev, (N, 3))  # m/s
         mean_velocity = np.mean(velocity, axis=0)
         velocity -= mean_velocity  # 不受外力，质心速度为零
@@ -270,7 +266,7 @@ def boundary_conditions(positions, box_size):
     # 转换回笛卡尔坐标
     wrapped_cartesian = np.dot(frac_coords, supercell_vectors.T)
     
-    # 保留原来的时间维度（或其他额外列）
+    # 保留原来的时间维度
     wrapped_positions = np.copy(positions)
     wrapped_positions[:, :3] = wrapped_cartesian
     
@@ -310,7 +306,7 @@ ax.set_xlabel("X (Å)")
 ax.set_ylabel("Y (Å)")
 ax.set_zlabel("Z (Å)")
 plt.tight_layout()
-plt.show()
+plt.close()
 
 # 模拟参数
 prev_positions = None

@@ -1,0 +1,57 @@
+LAMMPS (29 Sep 2021 - Update 2)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread. (src/comm.cpp:98)
+  using 1 OpenMP thread(s) per MPI task
+# 石墨晶体的真实分子动力学模拟
+
+units           metal
+dimension       3
+boundary        p p p
+atom_style      atomic
+
+read_data       graphite.data  # 你需要一个 real 单位的石墨晶体结构
+Reading data file ...
+  triclinic box = (0.0000000 0.0000000 0.0000000) to (10.377465 8.9871485 19.718310) with tilt (-5.1887326 0.0000000 0.0000000)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  576 atoms
+  read_data CPU = 0.011 seconds
+mass 1 12.01
+# 使用 AIREBO 势函数
+pair_style      airebo 3.0
+pair_coeff      * * CH.airebo C
+Reading airebo potential file CH.airebo with DATE: 2011-10-25
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+# 初始速度设置
+velocity        all create 300.0 12345 dist gaussian  # 温度单位为 K
+
+# 控温控压 - NPT 可用于热膨胀模拟，NVT 用于恒温模拟
+fix             1 all nvt temp 300.0 300.0 100.0
+
+# 数据输出
+thermo          100
+thermo_style    custom step temp press pe ke etotal
+
+# 原子轨迹输出（用于可视化）
+dump            1 all custom 500 dump.graphite id type x y z vx vy vz
+dump_modify     1 sort id
+
+# 运行时间（单位为 fs）
+timestep        0.5
+run             20000
+Neighbor list info ...
+  update every 1 steps, delay 0 steps, check yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 12.2
+  ghost atom cutoff = 12.2
+  binsize = 6.1, bins = 3 2 4
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair airebo, perpetual
+      attributes: full, newton on, ghost
+      pair build: full/bin/ghost
+      stencil: full/ghost/bin/3d
+      bin: standard
+ERROR on proc 0: Neighbor list overflow, boost neigh_modify one (src/npair_full_bin_ghost.cpp:151)
+Last command: run             20000

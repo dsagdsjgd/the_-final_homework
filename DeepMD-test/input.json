@@ -1,0 +1,43 @@
+{
+    "model": {
+      "type_map": ["TYPE_0"],
+      "descriptor": {
+        "type": "se_e2_a",
+        "sel": [64],
+        "rcut": 6.0,
+        "axis_neuron": 16,
+        "neuron": [240, 240, 240]
+      },
+      "fitting_net": {
+        "neuron": [240, 240, 240]
+      }
+    },
+    "learning_rate": {
+      "type": "exp",
+      "start_lr": 0.001,
+      "decay_steps": 5000,
+      "decay_rate": 0.95
+    },
+    "loss": {
+      "type": "ener",
+      "start_pref_e": 0.02,
+      "limit_pref_e": 1,
+      "start_pref_f": 1000,
+      "limit_pref_f": 1
+    },
+    "training": {
+      "training_data": {
+        "systems": ["data"],
+        "batch_size": 4
+      },
+      "validation_data": {
+        "systems": ["data"],
+        "batch_size": 1
+      },
+      "stop_batch": 100000,
+      "disp_freq": 1000,
+      "save_freq": 10000,
+      "seed": 12345
+    }
+  }
+  
