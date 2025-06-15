@@ -14,7 +14,11 @@ a6 = np.array([0.0, 0.0, 7.0])
 nx, ny, nz = 6, 6, 4
 # 模拟参数
 dt = 1e-14 # 10 fs
+<<<<<<< HEAD
 steps = 50
+=======
+steps = 100
+>>>>>>> e4dae48 (保存本地修改)
 # LJ模拟参数
 epsilon=0.0026
 sigma=1.26
@@ -341,7 +345,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
         velocity = (new_positions-current_positions)*angstrom / dt  
         new_positions = boundary_conditions(new_positions, box_size)
         time_value = (step + 1) * dt  #step是从0开始的，所以需要加1
-        
+        time_value_2 = (step + 0.5) * dt #这样的计算方法速度和位移不是同步的
         # 写入数据：仅 xyz 坐标
         step_data = np.hstack([
             particle_ids.reshape(-1, 1),
@@ -354,7 +358,7 @@ with h5py.File("graphite_simulation.h5", "w") as h5file:
         step_velocity_data = np.hstack([
             particle_ids.reshape(-1, 1),
             velocity[:, :3],
-            np.full((N_particles, 1), time_value)
+            np.full((N_particles, 1), time_value_2)
         ])
         vel_dataset[step * N_particles : (step + 1) * N_particles] = step_velocity_data
         if writetext:
